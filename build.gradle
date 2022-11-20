@@ -56,8 +56,6 @@ dependencies {
     implementation 'javax.xml.bind:jaxb-api:2.3.0'
 
     implementation 'com.google.cloud:google-cloud-nio:0.123.10'
-    // implementation 'com.google.cloud:
-
 
     implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.3.4'
     implementation group: 'ch.qos.logback', name: 'logback-core', version: '1.3.4'
