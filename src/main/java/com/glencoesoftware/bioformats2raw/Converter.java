@@ -159,7 +159,7 @@ public class Converter implements Callable<Void> {
       "--output-options=s3fs_path_style_access=true|... " +
       "might be useful for connecting to minio."
   )
-  private Map<String, String> outputOptions;
+  private Map<String, String> outputOptions = new HashMap<String, String>();
 
   @Option(
     names = {"-r", "--resolutions"},
