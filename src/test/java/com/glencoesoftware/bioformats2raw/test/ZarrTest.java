@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
@@ -235,6 +236,14 @@ public class ZarrTest {
     List<Map<String, Object>> multiscales = (List<Map<String, Object>>)
             series0.getAttributes().get("multiscales");
     assertEquals(1, multiscales.size());
+
+    Map<String, Object> multiscale = multiscales.get(0);
+    List<Map<String, Object>> datasets =
+            (List<Map<String, Object>>) multiscale.get("datasets");
+    assertTrue(datasets.size() > 0);
+    for (int i=0; i<datasets.size(); i++) {
+      assertEquals(String.valueOf(i), datasets.get(i).get("path"));
+    }
   }
 
   /**
@@ -675,6 +684,33 @@ public class ZarrTest {
     series0.read(tile, shape, offset);
     seriesPlaneNumberZCT = FakeReader.readSpecialPixels(tile);
     assertArrayEquals(new int[] {0, 1, 0, 0, 1}, seriesPlaneNumberZCT);
+  }
+
+  /**
+   * Test the progress listener API.
+   */
+  @Test
+  public void testProgressListener() throws Exception {
+    input = fake("sizeX", "8192", "sizeY", "8192", "sizeZ", "5");
+
+    Converter progressConverter = new Converter();
+    TestProgressListener listener = new TestProgressListener();
+    progressConverter.setProgressListener(listener);
+
+    try {
+      CommandLine.call(progressConverter,
+        new String[] {input.toString(), output.toString()});
+    }
+    catch (RuntimeException rt) {
+      throw rt;
+    }
+    catch (Throwable t) {
+      throw new RuntimeException(t);
+    }
+
+    Integer[] expectedTileCounts = new Integer[] {320, 80, 20, 5, 5, 5};
+    Integer[] tileCounts = listener.getTileCounts();
+    assertArrayEquals(expectedTileCounts, tileCounts);
   }
 
   private int bytesPerPixel(DataType dataType) {
@@ -1859,6 +1895,60 @@ public class ZarrTest {
     memoFile.delete();
     assertTool("--overwrite");
     assertFalse(memoFile.exists());
+  }
+
+  /**
+   * Check that setting options via API instead of command line arguments
+   * works as expected.
+   */
+  @Test
+  public void testOptionsAPI() throws Exception {
+    input = fake("series", "2", "sizeX", "4096", "sizeY", "4096");
+
+    Converter apiConverter = new Converter();
+    apiConverter.setInputPath(input.toString());
+    apiConverter.setOutputPath(output.toString());
+    apiConverter.setSeriesList(Collections.singletonList(1));
+    apiConverter.setTileWidth(128);
+    apiConverter.setTileHeight(128);
+
+    apiConverter.call();
+
+    ZarrGroup z = ZarrGroup.open(output.toString());
+
+    Path omePath = output.resolve("OME");
+    ZarrGroup omeGroup = ZarrGroup.open(omePath.toString());
+    List<String> groupMap =
+      (List<String>) omeGroup.getAttributes().get("series");
+    assertEquals(groupMap.size(), 1);
+    assertEquals(groupMap.get(0), "0");
+
+    OME ome = getOMEMetadata();
+    assertEquals(1, ome.sizeOfImageList());
+
+    // Check series 1 dimensions and special pixels
+    ZarrArray series0 = z.openArray("0/0");
+    int[] shape = new int[] {1, 1, 1, 4096, 4096};
+    assertArrayEquals(shape, series0.getShape());
+    assertArrayEquals(
+      new int[] {1, 1, 1,
+      apiConverter.getTileHeight(),
+      apiConverter.getTileWidth()},
+      series0.getChunks());
+    byte[] tile =
+      new byte[apiConverter.getTileWidth() * apiConverter.getTileHeight()];
+    shape[3] = 128;
+    shape[4] = 128;
+    series0.read(tile, shape);
+    int[] seriesPlaneNumberZCT = FakeReader.readSpecialPixels(tile);
+    assertArrayEquals(new int[] {1, 0, 0, 0, 0}, seriesPlaneNumberZCT);
+    try {
+      z.openArray("1/0");
+      fail("Array exists!");
+    }
+    catch (IOException e) {
+      // Pass
+    }
   }
 
   /**
