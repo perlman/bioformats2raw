@@ -138,6 +138,7 @@ public class Converter implements Callable<Integer> {
   private volatile String logLevel;
   private volatile boolean progressBars = false;
   private volatile boolean printVersion = false;
+  private volatile boolean help = false;
 
   private volatile int maxWorkers;
   private volatile int maxCachedTiles;
@@ -401,7 +402,6 @@ public class Converter implements Callable<Integer> {
   @Option(
     names = {"-p", "--progress"},
     description = "Print progress bars during conversion",
-    help = true,
     defaultValue = "false"
   )
   public void setProgressBars(boolean useProgressBars) {
@@ -422,6 +422,21 @@ public class Converter implements Callable<Integer> {
   )
   public void setPrintVersionOnly(boolean versionOnly) {
     printVersion = versionOnly;
+  }
+
+  /**
+   * Configure whether to print help and exit without converting.
+   *
+   * @param helpOnly whether or not to print help and exit
+   */
+  @Option(
+    names = "--help",
+    description = "Print usage information and exit",
+    usageHelp = true,
+    defaultValue = "false"
+  )
+  public void setHelp(boolean helpOnly) {
+    help = helpOnly;
   }
 
   /**
@@ -521,7 +536,9 @@ public class Converter implements Callable<Integer> {
             "com.glencoesoftware.bioformats2raw.PyramidTiffReader," +
             "com.glencoesoftware.bioformats2raw.MiraxReader," +
             "com.glencoesoftware.bioformats2raw.BioTekReader," +
-            "com.glencoesoftware.bioformats2raw.ND2PlateReader"
+            "com.glencoesoftware.bioformats2raw.ND2PlateReader," +
+            "com.glencoesoftware.bioformats2raw.MetaxpressReader," +
+            "com.glencoesoftware.bioformats2raw.MCDReader"
   )
   public void setExtraReaders(Class<?>[] extraReaderList) {
     if (extraReaderList != null) {
@@ -918,6 +935,13 @@ public class Converter implements Callable<Integer> {
   }
 
   /**
+   * @return true if only usage info is displayed
+   */
+  public boolean getHelp() {
+    return help;
+  }
+
+  /**
    * @return maximum number of worker threads
    */
   public int getMaxWorkers() {
@@ -1090,6 +1114,14 @@ public class Converter implements Callable<Integer> {
    */
   @Override
   public Integer call() throws Exception {
+    ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger)
+        LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+    root.setLevel(Level.toLevel(logLevel));
+
+    if (help) {
+      return -1;
+    }
+
     if (printVersion) {
       String version = Optional.ofNullable(
         this.getClass().getPackage().getImplementationVersion()
@@ -1117,10 +1149,6 @@ public class Converter implements Callable<Integer> {
     }
 
     OpenCVTools.loadOpenCV();
-
-    ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger)
-        LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-    root.setLevel(Level.toLevel(logLevel));
 
     if (progressBars) {
       setProgressListener(new ProgressBarListener(logLevel));

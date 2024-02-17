@@ -24,6 +24,13 @@ The native libraries are not packaged with any relevant jars.  See also note in 
  * Ubuntu 18.04+: `apt-get install libblosc1`
  * conda: Installing `bioformats2raw` via conda (see below) will include `blosc` as a dependency.
 
+If using features that rely on OpenCV (see the [Downsampling type](#downsampling-type) section below), minimum supported versions are:
+
+ * Ubuntu 18.04
+ * RHEL 8
+ * Windows 10
+   - expect to see warnings as described in https://github.com/opencv/opencv/issues/20113; these can be ignored
+
 __NOTE:__ If you are setting `jna.library.path` via the `JAVA_OPTS` environment variable, make sure the path is to the folder __containing__ the library not path to the library itself.
 
 Installation
@@ -299,7 +306,7 @@ relative performance.
 Metadata caching
 ================
 
-During conversion, a temporary `.*.bfmemo` file will be created. By default, this file is in the same directory as the input data
+During conversion, a temporary `.*.bfmemo` file may be created. By default, this file is in the same directory as the input data
 and will be removed after the conversion finishes. The location of the `.*.bfmemo` file can be configured using the `--memo-directory` option:
 
     bioformats2raw /path/to/file.mrxs /path/to/zarr-pyramid --memo-directory /tmp/
@@ -307,7 +314,20 @@ and will be removed after the conversion finishes. The location of the `.*.bfmem
 This is particularly helpful if you do not have write permissions in the input data directory.
 
 As of version 0.5.0, `.*.bfmemo` files are deleted at the end of conversion by default. We do not recommend keeping these files for normal
-conversions, but if they are needed for troubleshooting then the `--keep-memo-files` option can be used.
+conversions, but if they are needed for troubleshooting then the `--keep-memo-files` option can be used. Note that if a memo file did not
+need to be created, `--keep-memo-files` will still result in no `.*.bfmemo` files at the end of conversion. This is particularly common
+for small datasets that can be read very quickly.
+
+Downsampling type
+=================
+
+By default, pyramid resolutions are generated using a [very simple downsampling algorithm](https://github.com/ome/ome-common-java/blob/master/src/main/java/loci/common/image/SimpleImageScaler.java).
+For some input data types, this may not be ideal. The `--downsample-type` option can be used to specify an alternative algorithm.
+Supported values are `SIMPLE` (default), `GAUSSIAN`, `AREA`, `LINEAR`, `CUBIC`, and `LANCZOS`, as declared in the [Downsampling enum](https://github.com/glencoesoftware/bioformats2raw/blob/master/src/main/java/com/glencoesoftware/bioformats2raw/Downsampling.java).
+No additional downsampling algorithms are directly implemented in bioformats2raw; OpenCV is used to for any value of `--downsample-type` other than the default.
+
+If the minimum system requirements (see above) are not met, or the input data type is int8 or int32 (see https://github.com/glencoesoftware/bioformats2raw/pull/199),
+then any value of `--downsample-type` other than the default is expected to throw an exception.
 
 Additional readers
 ==================
@@ -400,6 +420,15 @@ The credentials used require read/write access to the bucket. (Minimally, this c
 `Storage Object Viewer` and `Storage Object Delete`).
 
 `--output-options` are *not* currently supported with GCS.
+=======
+MCDReader
+---------
+
+Supports Fluidigm Hyperion .mcd data. Both raw data and panorama images are read. The raw data typically has a small XY size,
+but most panorama images are large enough that a pyramid will be generated.
+
+Note that the `X`, `Y`, and `Z` channels in the raw data are calibration images. While these 3 channels appear first
+in the .mcd file, `MCDReader` moves them to the end of the channel list for a better viewing experience in OMERO.
 
 License
 =======
